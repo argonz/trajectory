@@ -1,6 +1,6 @@
 
-(use 'clojure.math.numeric-tower)
-(require 'quil.core)
+;; (use 'clojure.math.numeric-tower)
+;; (require 'quil.core)
 
 ;; MECHANICS - 
 ;; 1| objects - having pos - typ -
@@ -12,25 +12,6 @@
 ;; world-mechanics - you have it here - great 
 ;;                
 
-
-;; MECHANIC/LOGIC - creating these fields 
-(defn vec+vec [p0 p1]
-  (map + p0 p1))
-(defn vec-vec [p0 p1]
-  (map - p0 p1))
-(defn vec*scl [p s]
-  (map * p (repeat s)))
-(defn vec->len [p]
-  (Math/pow (reduce + (map #(Math/pow % 2) p)) 0.5))
-(defn vec->norm [p]
-  (vec*scl p (/ 1.0 (vec->len p) )))
-(defn vec-len->vec [p l]
-  (vec*scl (vec->norm p) l))
-
-(defn vec<vec [p0 p1 dim]
-  (< (nth p0 dim) (nth dim)))
-(defn vec>vec [p0 p1 dim]
-  (> (nth p0 dim) (nth dim)))
 
 
 ;; OBJECTS 
@@ -110,7 +91,7 @@
 (defn pos-set-in-bound [pos dim]
   (map axis-set-in-bound pos dim))
 
-
+ 
 
 ;; UPDATING  
 ;; obj -> new-obj  -   UPDATING THE STATE - and that's it fuckers :)
@@ -168,7 +149,7 @@
   (if (pos-out-bound? pos (:dim env))
     :out 
     (pos-objs-under? pos (:objs env))))
-(defn pos-env->typ-under? [pos env]
+(defn pos-env->typs-under? [pos env]
   (let [unders (pos-env->objs-under? pos env)]
     (if (= unders :out)
       unders
@@ -176,7 +157,7 @@
         nil
         (map :typ unders)))))
 (defn poss-env->typs-under? [poss env]
-  (doall (map pos-env->typ-under? poss (repeat env))))
+  (doall (map pos-env->typs-under? poss (repeat env))))
   
 
 
@@ -224,7 +205,12 @@
 ;;         os1-bnd (objs-env->set-in-bound os1-mov e)]
 ;;     ;; should be collision detection here - fuck that :)
 ;;     (assoc e :objs os-1bnd
-        
+
+
+(defn env-typ->objs [e typ]
+  (filter #(= (:typ %) typ) (:objs e)))
+(defn env-typ->poss [e typ]
+  (map :pos (env-typ->objs e typ)))
 
 
 

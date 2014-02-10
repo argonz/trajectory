@@ -1,6 +1,4 @@
 
-(use 'clojure.math.numeric-tower)
-(require 'quil.core)
 ;; THE ENV - so we are 
 
 
@@ -64,10 +62,10 @@
 ;;       (add-dim dim)
 ;;       (env-add-rand-obsts dim n siz))))
 
+
+
            
 
 ;; testing 
-(dim-siz->rand-rect-obj [10 10] [2 2])
-(obsts-rand-init 2 [5 5] [2 2])
-
-;; having a test env - hooray :))
+;; (dim-siz->rand-rect-obj [10 10] [2 2])
+;; (obsts-rand-init 2 [5 5] [2 2])

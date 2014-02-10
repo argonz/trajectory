@@ -41,11 +41,17 @@
       (env-obj->scale-corners-pos-siz unit-pix)
       (assoc :col [0 255 0]
              :shp :rect)))
+(defn env-shrt-wayp->disp-obj [o unit-pix]
+  (-> o 
+      (env-obj->scale-corners-pos-siz unit-pix)
+      (assoc :col [24 167 181]
+             :shp :rect)))
 
 
 (defn env-obj->disp-obj [o unit-pix]
   (cond (= (:typ o) :obst) (env-obst->disp-obj o unit-pix)
         (= (:typ o) :agnt) (env-agnt->disp-obj o unit-pix)
+        (= (:typ o) :shrt-wayp) (env-shrt-wayp->disp-obj o unit-pix)
         (= (:typ o) :goal) (env-goal->disp-obj o unit-pix)))
 
 ;; rendering
@@ -63,7 +69,6 @@
 (defn img-vobjs->draw! [img vobjs]
   (let [g (img->graphics img)]
     (doseq [o vobjs]
-      (println o)
       (grph->fill-rect! g (:ltc o) (:siz o) (:col o)))
     img))      
 (defn env->img [e upix]
