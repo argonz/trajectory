@@ -2,222 +2,360 @@
 
 ;; creating positions - for the some manner 
 ;; so this is how this is how - we will have 
-;; 
-  
+;;
+
+;; having typed 
+
+;; array 
+;; aget aset alength aclone amap areduce 
+;; (set! *warn-on-reflection* true)    
+;; (set! *warn-on-reflection* false)    
+(defn arr2d->arr2d-double ^"[[D" [arr]
+  (into-array (Class/forName "[D")
+              (map double-array arr)))
+(defn arr2d->arr2d-int ^"[[I" [arr]
+  (into-array (Class/forName "[I")
+              (map int-array arr)))
+(defn arr2d-double [d0 d1]
+  (make-array Double/TYPE d0 d1))
+(defn arr2d-int [d0 d1]
+  (make-array Integer/TYPE d0 d1))
+
+;; aux
+(defn arr2d-aclone [a2d]
+  (into-array (map aclone a2d)))
+(defn arr2d-print [a2d]
+  (let [[d0 d1] (arr2d->dims a2d)]
+    (doseq [i0 (range d0)]
+      (println (map #(format "%.2f" %) (vec (aget a2d i0)))))))
+
+(defn arr2d-ipos->val [a2d [i0 i1]]
+  (aget a2d i0 i1))
+(defn arr2d-ipos->set! [a2d [i0 i1] v]
+  (aset a2d i0 i1 v)
+  a2d)
+
+
 ;; generating star - raster setting - which is so shitty all around :)
 ;; that's gonna around :)
 ;; I'm dead if it's the thing :) - we will see - more have to :)
+(defn raster->dim [rs]
+  [(count rs) (count (first rs))])
+(defn dim->raster [[d0 d1]]
+  (to-array-2d (repeat d0 (repeat d1 0))))
+(defn ipos-rs->val [[i0 i1] r]
+  (aget r i0 i1))
+(defn iposs-rs->vals [is r]
+  (for [i is] (ipos-rs->val i r)))
+(defn rs-ipos-set! [rs [i0 i1] val]
+  (aset rs i0 i1 val)
+  rs)
+
+(defn ipos-dim->valid? [[i0 i1] [d0 d1]]
+  (and (<= 0 i0) (< i0 d0)
+       (<= 0 i1) (< i1 d1)))
+(defn ipos-rs->valid? [[i0 i1] rs]
+  (let [[d0 d1] (raster->dim rs)]
+    (and (<= 0 i0) (< i0 d0)
+         (<= 0 i1) (< i1 d1))))
+(defn iposs-rs->valid-iposs [is rs]
+  (filter #(ipos-rs->valid? % rs) is))
 
 
-;; simplest floodings - manhatten flooding - great 
-(defn env->rst [e]
-  (let [[d0 d1] (:dim e)]
-    (to-array-2d 
-     (for [i0 (range d0)]
-       (for [i1 (range d1)]
-         (if (ipos-env->obs? [i0 i1] e)
-           -1 
-           0))))))
+;; adding up rasters 
+(defn arr2d->multiply-arr2d [a2d m]
+  (let [[d0 d1] (arr2d->dims a2d)
+        ret (arr2d-aclone a2d)]
+    (doseq [i0 (range d0)
+            i1 (range d1)]
+      (aset ret i0 i1 (* (aget a2d i0 i1) m)))
+    ret))
+(defn arr2d-pow! [a2d e]
+  (let [[d0 d1] (arr2d->dims a2d)]
+    (doseq [i0 (range d0)
+            i1 (range d1)]
+      (let [v (Math/pow (aget a2d i0 i1) e)]
+        (aset a2d i0 i1 v)))
+    a2d))
+(defn arr2d-pow-pos! [a2d e]
+  (let [[d0 d1] (arr2d->dims a2d)]
+    (doseq [i0 (range d0)
+            i1 (range d1)]
+      (let [v (aget a2d i0 i1)]
+        (if (pos? v)
+          (aset a2d i0 i1 (Math/pow v e)))))
+    a2d))
+(defn arr2d-aset-plus! [arr2d i0 i1 v]
+  (let [nv (+ (aget arr2d i0 i1) v)]
+    (aset arr2d i0 i1 nv)))
+(defn arr2d-add-arr2d! 
+  ;; positioned - corner 
+  ([a2d0 a2d1 ipos]
+     (let [dim0 (arr2d->dims a2d0)
+           dim1 (arr2d->dims a2d1)
+           [d0 d1] dim1]
+       (doseq [i0 (range d0)
+               i1 (range d1)]
+         (let [ip (vec+vec ipos [i0 i1])
+               [ip0 ip1] ip]
+           (if (ipos-dim->valid? ip dim0)
+             (arr2d-aset-plus! a2d0 (first ip) (second ip) (aget a2d1 i0 i1)))))
+       a2d0))
+  ;; without pos 
+  ([a2d0 a2d1] 
+     (let [[d0 d1] (arr2d->dims a2d0)]
+       (doseq [i0 (range d0)
+               i1 (range d1)]
+         (arr2d-aset-plus! a2d0 i0 i1 (aget a2d1 i0 i1))))
+     a2d0))
+(defn arr2d-add-arr2d-centered [a2d0 a2d1 ipos]
+  (let [dim1 (arr2d->dims a2d1)
+        hipos (map #(int (/ % 2.0)) dim1)]
+    (arr2d-add-arr2d! a2d0 a2d1 (vec-vec ipos hipos))))
 
-(defn rst->dim [r]
-  [(count r) (count (aget r 0))])
-(defn pos-rst->val [[p0 p1] r]
-  (aget r p0 p1))
-(defn pos->mnht-neigh-poss [[p0 p1]]
+;; (print-arr2d (normal-pdf2d-unittop-raster 2 2 2))
+;; (print-arr2d (arr2d-add-arr2d (arr2d-double 8 8)
+;;                               (normal-pdf2d-unittop-raster 2 2 2)
+;;                               [-1 -1]))
+;; (print-arr2d (arr2d-add-arr2d-centered (arr2d-double 8 8)
+;;                                        (normal-pdf2d-unittop-raster 2 2 2)
+;;                                        [3 3]))
+
+
+;; we want to create a pdf function 
+(defn normal-pdf [x mean std]
+  (* (/ 1.0 (* std (Math/sqrt (* 2 Math/PI))))
+     (Math/pow Math/E (- (/ (Math/pow (- x mean) 2)
+                            (* 2 (Math/pow std 2)))))))
+
+
+;; we are creating a normal - looking-like - pdf - and will see.. 
+;; std-cutoff - for how long we create the raster .. 
+;; rpu - real per unit 
+;; this should be more around - that's how it is - how this could  be 
+;; [0 0] - should be the center of it - and that's around - how its going to be 
+(defn normal-pdf2d-raster [std n-std rpu]
+  (let [d (Math/ceil (/ (* n-std std) rpu))
+        [d0 d1] (repeat 2 (+ 1 (* 2 d)))
+        rpu-half (vec->len [(/ rpu 2) (/ rpu 2)])
+        ret (arr2d-double d0 d1)]
+    
+    ;; do sequence 
+    (doseq [i0 (range (- d) (inc d))
+            i1 (range (- d) (inc d))]    
+      (let [v (* (vec->len [i0 i1]) rpu)]
+        ;; computing the density 
+        (aset ret (+ i0 d) (+ i1 d) (normal-pdf v 0 std))))
+    ;; return 
+    ret))
+;; (normal-pdf2d-raster 10 1 5)
+(defn normal-pdf2d-unittop-raster [std n-std rpu]
+  (let [p2d (normal-pdf2d-raster std n-std rpu)
+        nrm (/ 1.0 (normal-pdf 0 0 std))
+        [d0 d1] (arr2d->dims p2d)]
+
+    (doseq [i0 (range d0)
+            i1 (range d1)]
+      (let [v (* nrm (aget p2d i0 i1))]
+        (aset p2d i0 i1 v)))
+
+    p2d))
+;; (raster->show (normal-pdf2d-unittop-raster 10 2 2) [255 0 0] 8)
+;;      (normal-pdf (- (vec->len (ipos-rpu->pos [i0 i1] rpu)) mean (/ rpu 2.0)) mean std))))
+
+;; go through - the activator - the inhibitor -
+;; 0 - nothing
+;; pos - activator
+;; neg - inhibitor
+;; adding up the raster - which is imp
+(defn state->act-inh-sum-state [s0 act-arr2d inh-arr2d]
+;;  (arr2d-print s0)
+  (let [s1 (arr2d-aclone s0)
+        [d0 d1] (arr2d->dims s0)]
+
+    ;; activities
+    (doseq [i0 (range d0)
+            i1 (range d1)]    
+      (let [v (aget s0 i0 i1)]
+        (cond (pos? v) (arr2d-add-arr2d-centered 
+                        s1 
+                        (arr2d->multiply-arr2d act-arr2d v)
+                        [i0 i1])
+              (neg? v) (arr2d-add-arr2d-centered 
+                        s1 
+                        (arr2d->multiply-arr2d inh-arr2d v)
+                        [i0 i1])
+              (= 0) nil)))
+    ;; enforcing obs
+    (doseq [i0 (range d0)
+            i1 (range d1)]    
+      (if (= (aget s0 i0 i1) -1)
+        (aset s1 i0 i1 -1)))
+    ;; returning 
+    s1))
+;; (defn state->act-inh-till-reach-ipos [s0 ipos act-arr2d inh-arr2d]
+;;   (let [[i0 i1] ipos]
+;;     (loop [s s0]
+;;       (println  (aget s i0 i1))
+;;       (if (pos? (aget s i0 i1))
+;;         s
+;;         (recur (state->act-inh-sum-state s act-arr2d inh-arr2d))))))
+(defn state-ipos-ipos->act-inh-till-reach [s0 ipos0 ipos1 act-arr2d inh-arr2d]
+  (loop [s (arr2d-ipos->set! s0 ipos1 1.0)]
+    (println (arr2d-ipos->val s ipos1))
+    (if (pos? (arr2d-ipos->val s ipos0))
+      s
+      (recur (state->act-inh-sum-state s act-arr2d inh-arr2d)))))
+
+
+(defn gauss-test [rpu]
+  (let [pos0 (pos-rpu->ipos [4000 8900] rpu)
+        pos1 (pos-rpu->ipos [3000 2900] rpu)
+        ras (env->scaled-obs-raster m0 rpu)
+        ret (state-pos-pos->act-inh-till-reach 
+             ras pos0 pos1 
+             (normal-pdf2d-unittop-raster 300 2.44 rpu)
+             (normal-pdf2d-unittop-raster 140 2.44 rpu))]
+    
+    (raster->show (arr2d-pow-pos! ret 0.5)  [255 0 0] 8)))
+
+
+
+  
+
+(defn ipos->mnht-neigh-iposs [[p0 p1]]
   [[(inc p0) p1]
    [(dec p0) p1]
    [p0 (inc p1)]
    [p0 (dec p1)]])
-(defn pos-rst->mnht-neighs [p r]
-  (map pos-rst->val (pos->mnht-neigh-poss p) (repeat r)))
-(defn pos-rst->positive-neighs? [p r]
-  (some pos? (pos-rst->mnht-neighs p r)))
+(defn ipos-rst->mnht-neighs [p r] 
+  (remove nil?
+          (for [[i0 i1] (ipos->mnht-neigh-iposs p)]
+            (try (aget r i0 i1)
+                 (catch Exception e nil)))))
+(defn ipos-rst->mnht-pos-neighs? [p rs dim]
+  (loop [[i & ir] (ipos->mnht-neigh-iposs p)]
+    (if i
+      (if (ipos-dim->valid? i dim)
+        (let [[i0 i1] i]
+          (if (pos? (aget rs i0 i1))
+            true
+            (recur ir)))
+        (recur ir))
+      false)))
 
-(defn rst->mnht-flood-step [r]
-  (let [[d0 d1] (rst->dim r)]
+
+;; MNHT FLOODING 
+;; (defn rst->mnht-flood-step [rs0]
+;;   (let [[d0 d1] (array-2d->dims rs0)
+;;         rs1 (make-array Integer/TYPE d0 d1)]
+
+;;     (doseq [i0 (range d0)
+;;             i1 (range d1)]                
+        
+;;          (let [v0 (aget rs0 i0 i1)
+;;                v1 (cond (pos? v0) (inc v0)
+;;                         (neg? v0) v0
+;;                         true (if (ipos-rst->positive-neighs? [i0 i1] rs0)
+;;                                (inc v0)
+;;                                v0))]
+;;            (aset rs1 i0 i1 (int v1))))
+;;     rs1))
+(defn rst->mnht-flood-step [rs0]
+  (let [dim (arr2d->dims rs0)
+        [d0 d1] dim]
+
+    (to-array-2d 
+    (for [i0 (range d0)]
+      (for [i1 (range d1)]              
+
+         (let [v0 (aget rs0 i0 i1)]
+           (cond (pos? v0) (inc v0)
+                 (neg? v0) v0
+                 true (if (ipos-rst->mnht-pos-neighs? [i0 i1] rs0 dim)
+                        (inc v0)
+                        v0))))))))
+
+(defn rst->mnht-flood-till-reach [rs ipos]
+  (loop [rs rs]
+    (if (zero? (ipos-rs->val ipos rs))
+      (recur (rst->mnht-flood-step rs))
+      rs)))
+(defn rst-pos0-pos1->mnht-flood [rs pos0 pos1]
+  (rst->mnht-flood-till-reach (rs-ipos-set! rs pos1 1)
+                              pos0))
+
+(defn rst->nonminus-minmax-inverse [rs]
+  (let [min-val (apply min (filter nonneg? (arr2d->vals rs)))
+        max-val (apply max (filter nonneg? (arr2d->vals rs)))
+        [d0 d1] (arr2d->dims rs)]
+
     (to-array-2d
      (for [i0 (range d0)]
-       (for [i1 (range d1)]                
-        
-         (let [v (aget r i0 i1)]
-           (cond (pos? v) (inc v)
-                 (neg? v) v
-                 ;; if zero checking around 
-                 true (if (pos-rst->positive-neighs? p r)
-                        (inc v)
-                        v))))))))
-;; flooding 
-(defn raster-pos->inc-flood-till-reach [rs pos]
-  (loop [rs rs]
-    (if (zero? (raster-pos->val rs pos))
-      (recur (raster->flood-inc-raster-step rs))
-      rs)))
-(defn raster-pos0-pos1->flood-raster [rs pos0 pos1]
-  (raster-pos->inc-flood-till-reach (raster-is->replace rs pos0 1)
-                                    pos1))
-
-(defn rst->mnht-flooding-till-reach [r] 
-  
-          
-          
-  
-(defn mnht-flood? [p e]
-  (
+       (for [i1 (range d1)]
+         (let [v (aget rs i0 i1)]
+           (if (nonneg? v) 
+             (- max-val (- v min-val))
+             v)))))))
+    
 
 
 
 
+;; UPTRACING - FROM A FLOOD MAP 
+(defn raster-pos->highest-uptrace-neigh-pos [rs pos]
+  (let [dim (raster->dim rs)
+        iss (conj (iposs-rs->valid-iposs pos rs) pos)
+        vs (iposs-rs->vals iss rs)]
+    (nth iss (.indexOf vs (apply max vs)))))
+(defn raster-pos->uptrace-poss [rs pos]
+  (loop [p pos
+         ret [pos]]
+    (let [np (raster-pos->highest-uptrace-neigh-pos rs p)]
+      (if (vec=vec? p np)
+        ret 
+        (recur np (conj ret np))))))
 
-;; ;; CHECKBOARD RASTER 
-;; ;; it's not pos it's axis 
-;; (defn pos-step->axis-min [p pmin step]
-;;   (let [n (int (/ (- p pmin) step))]
-;;      (- p (* n step))))
-;; (defn pos-step->axis-max [p pmax step]
-;;   (let [n (int (/ (- pmax p) step))]
-;;     (+ p (* n step))))
-;;  ;; getting the axis - so cool 
-;; (defn pos-minmax-step->axis-range [p pmin pmax step]
-;;   (let [amin (pos-step->axis-min p pmin step)
-;;         amax (pos-step->axis-max p pmax step)]
-;;     (range amin amax step)))
-;; (defn pos-minmax-step->axis-ranges [pos dim step]
-;;   (let [[p0 p1] pos
-;;         [d0 d1] dim 
-;;         p0axis (pos-minmax-step->axis-range p0 0 d0 step)
-;;         p1axis (pos-minmax-step->axis-range p1 0 d1 step)]
-;;     [p0axis p1axis]))
-
-;; ;; raster - 2d list of positions 
-;; (defn pos-dim-step->raster-poss [pos dim step]
-;;   (let [[p0as p1as] (pos-minmax-step->axis-ranges pos dim step)]
-;;     (loop [[p0 & p0rs] p0as
-;;            ret []]
-;;       (if p0 
-;;         (recur p0rs (conj ret (map vector (repeat p0) p1as)))
-;;         ret))))
-;; (defn raster-env->raster-typs [rs env]
-;;   (loop [[p0s & p0rs] rs
-;;          ret []]
-;;     (if p0s
-;;       (recur p0rs (conj ret (poss-env->typs-under? p0s env)))
-;;       ret)))
-
-;; ;; env - we are around - so we are around .. 
-;; (defn raster-env->typs [raster env]
-;;   (poss-env->typs-under? raster env))
-;; (defn env-pos-step->raster-typs [env pos step]
-;;   (let [rs (pos-dim-step->raster-poss pos (:dim env) step)
-;;         ts (raster-env->raster-typs rs env)]
-;;     [rs ts]))
-
-;; ;; flooding
-;; ;; it might be - using hashes - because of the shit around :O
-
-;; ;; adding the shit around - that's gonna be around 
-;; ;; so that's around 
+;; flood and having the uptrace 
+;; (defn raster-pos0-pos1->flood-poss [rs pos0 pos1]
+;;   (raster-pos->uptrace-poss (raster-pos0-pos1->flood-raster rs pos0 pos1)
+;;                             pos1))
 
 
-;; ;; of we go through that can be easier - bu
-;; (defn raster-init [d0 d1]
-;;   (vec (repeat d0 (vec (repeat d1 0)))))
-;; (defn poss->raster-init [poss]
-;;   (raster-init (count poss) (count (first poss))))
-;; (defn raster-replace [rs i0 i1 e]
-;;   (assoc rs i0 (assoc (nth rs i0) i1 e)))
-;; (defn raster-is->replace [rs [p0 p1] e]
-;;   (assoc rs p0 (assoc (nth rs p0) p1 e)))
-;; (defn raster-pos->val [rs [p0 p1]]
-;;    (nth (nth rs p0) p1))
-;; (defn nths [coll [i0 & ir]]
-;;   (if ir 
-;;     (nths (nth coll i0) ir)
-;;     (nth coll i0)))
-;; (defn raster-poss->vals [rs poss]
-;;   (map raster-pos->val (repeat rs) poss))
-;; (defn raster->dim [rs]
-;;   [(count rs) (count (first rs))])
 
-;; ;; doing the flooding 
-;; ;; flood patterns 
-;; (def neigh-dirs [[-1 -1] [-1 0] [-1 1] [0 -1] [0 1] [1 -1] [1 0] [1 1]])
-;; (def neigh-inv-dists [0.7 1 0.7 1 1 0.7 1 0.7])
-;; (def neigh-dir-inv-dists (map vector neigh-dirs neigh-inv-dists))
-;; ;; (map println neigh-dir-inv-dists)
+;; viewing raster 
+(defn raster->max [rs]
+  (let [[d0 d1] (raster->dim rs)]
+    (apply max (for [i0 (range d0)
+                     i1 (range d1)]
+                 (aget rs i0 i1)))))
+(defn raster->rgbs [rs rgb-max]
+  (let [[d0 d1] (arr2d->dims rs)
+        vmax (raster->max rs)
+        rgb-unit (vec*scl rgb-max (/ 1.0 vmax))]
 
-;; ;; (def neigh-dirs
-;; ;;   (doall (for [i0 [-1 0 1]
-;; ;;                i1 [-1 0 1]]
-;; ;;            [i0 i1])))
-;; ;; (def neigh-inv-dists 
-;; ;;   (for [v (doall neigh-dirs)]
-;; ;;     (/ 1.0 (vec->len v))))
+    (to-array-2d 
+     (for [i0 (range d0)]
+       (for [i1 (range d1)]
+         (let [v (aget rs i0 i1)]
+           (cond (pos? v) (map int (vec*scl rgb-unit v))
+                 (neg? v) [0 0 0]
+                 true [255 255 255])))))))
+(defn raster->show 
+  ([rs rgb-max scl] (rgbs->show (raster->rgbs rs rgb-max) scl))
+  ([rs rgb-max] (raster->show rs rgb-max 1)))
 
-
-;; ;; ONLY RASTER - you ale the leadel :)
-;; (defn is-dim-valid? [[i0 i1] [d0 d1]]
-;;   (and (< -1 i0 d0)
-;;        (< -1 i1 d1)))
-;; (defn is-typ-valid? [is rs]
-;;   (not (neg? (nths rs is))))
-;; (defn is-valid? [is rs dim]
-;;   (if (is-dim-valid? is dim)
-;;     (is-typ-valid? is rs)))
- 
-  
-;; ;; getting an is -
-;; ;; 1| loop through
-;; (defn is->neigh-iss [is]
-;;   (map vec+vec neigh-dirs (repeat is)))
-;; (defn is->valid-neigh-is [is rs dim]
-;;   (filter #(is-valid? % rs dim) (is->neigh-iss is)))
-;; (defn is->dim-valid-neigh-is [is dim]
-;;   (filter #(is-dim-valid? % dim) (is->neigh-iss is)))
-
-;; ;; ds - distances 
-;; (defn iss->highest-dist [iss ds rs dim]
-;;   (loop [[is0 & ir] iss
-;;          [d0 & dr] ds
-;;          ret []]
-;;     (if is0 
-;;       (if (is-valid? is0 rs dim)
-;;         (if (pos? (nths rs is0))
-;;           (recur ir dr (conj ret d0))
-;;           (recur ir dr (conj ret 0)))
-;;         (recur ir dr ret))
-;;       (apply max ret))))
-;; ;; getting the new inced val
-;; (defn is->inced-is [is rs dim]
-;;   (let [v (nths rs is)]
-;;     (cond (pos? v) (inc v)
-;;           (neg? v) v
-;;           true (+ v (iss->highest-dist (is->neigh-iss is) neigh-inv-dists rs dim)))))
-;; (defn raster->flood-inc-raster-step [rs]
-;;   (let [dim (raster->dim rs)
-;;         [im0 im1] dim]
-;;     (vec (for [i0 (range 0 im0)]
-;;            (vec (for [i1 (range 0 im1)]
-;;                   (is->inced-is [i0 i1] rs [im0 im1]))))))) 
-
-;; ;; HAVING NORMAL MANHATTEN FLOODING - that's gonna be allright and that's so long 
-;; (defn is->mnht-inced-is [is rs dim]
-;;   (let [v (nths rs is)]
-;;     (cond (neg? v) v
-;;           (
-;;           (pos? v) (inc v)
-          
-;;           true (+ v (iss->highest-dist (is->neigh-iss is) neigh-inv-dists rs dim)))))
-;; (defn raster->mnht-flood-inc-raster-step [rs]
-;;   (let [dim (raster->dim rs)
-;;         [im0 im1] dim]
-;;     (vec (for [i0 (range 0 im0)]
-;;            (vec (for [i1 (range 0 im1)]
-;;                   (is->inced-is [i0 i1] rs [im0 im1]))))))) 
+;; trying an example here 
+(rgbs->show (raster->rgbs (rst-pos0-pos1->mnht-flood (dim->raster [22 22]) [7 7] [19 16]) [255 0 0]) 12) 
+;; THIS IS COOL 
 
 
 
 
-          
+
+
+
+
 ;; ;; (defn pos->neigh-poss [pos]
 ;; ;;   (map vec+vec neigh-dirs (repeat pos)))
 ;; ;; (defn poss->remove-outbound [poss [d0 d1]]
@@ -267,27 +405,6 @@
 ;;   (raster-pos->inc-flood-till-reach (raster-is->replace rs pos0 1)
 ;;                                     pos1))
 
-
-;; ;; WE HAVE TO CHANGE THE STUFF AROUND ... 
-;; ;; uptracing - from a flood map 
-;; (defn raster-pos->highest-uptrace-neigh-pos [rs pos]
-;;   (let [dim (raster->dim rs)
-;;         iss (conj (is->dim-valid-neigh-is pos dim) pos)
-;;         vs (raster-poss->vals rs iss)]
-;;     (nth iss (.indexOf vs (apply max vs)))))
-;; (defn raster-pos->uptrace-poss [rs pos]
-;;   (loop [p pos
-;;          ret [pos]]
-;;     (let [np (raster-pos->highest-uptrace-neigh-pos rs p)]
-;;       (if (vec=vec? p np)
-;;         ret 
-;;         (recur np (conj ret np))))))
-
-
-;; ;; flood and having the uptrace 
-;; (defn raster-pos0-pos1->flood-poss [rs pos0 pos1]
-;;   (raster-pos->uptrace-poss (raster-pos0-pos1->flood-raster rs pos0 pos1)
-;;                             pos1))
 
 
 
